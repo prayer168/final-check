@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0b1a">
+<title>定案前檢查表</title>
+<style>
+  :root { --bg:#0a0b1a; --card:rgba(255,255,255,.06); --line:rgba(255,255,255,.14); --ink:#f4f2ff; --mute:#9a98b8; --me:#ffcf66; --ok:#7ad19a; --claude:#D97757; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; min-height:100vh; background:radial-gradient(900px 600px at 20% 0%, #1b1640, var(--bg) 60%, #05060c); color:var(--ink);
+         font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif; padding:24px 16px 140px; }
+  header { max-width:560px; margin:0 auto 18px; }
+  h1 { margin:0; font-size:30px; }
+  .sub { color:var(--mute); margin-top:6px; font-size:15px; }
+  .bar { height:10px; border-radius:5px; background:rgba(255,255,255,.1); margin-top:16px; overflow:hidden; }
+  .bar i { display:block; height:100%; width:0; background:linear-gradient(90deg,var(--claude),var(--me)); transition:width .3s; }
+  section { max-width:560px; margin:0 auto 16px; background:var(--card); border:1px solid var(--line); border-radius:18px; padding:8px 14px; }
+  h2 { font-size:17px; color:var(--me); margin:10px 4px 4px; }
+  label { display:flex; align-items:center; gap:14px; padding:13px 4px; border-top:1px solid rgba(255,255,255,.06); font-size:17px; cursor:pointer; }
+  h2 + label { border-top:0; }
+  input { appearance:none; flex:none; width:28px; height:28px; border-radius:8px; border:2px solid var(--mute); display:grid; place-items:center; margin:0; }
+  input:checked { background:var(--ok); border-color:var(--ok); }
+  input:checked::after { content:"✓"; color:#0a0b1a; font-weight:900; font-size:18px; }
+  input:checked + span { color:var(--mute); text-decoration:line-through; }
+  footer { position:fixed; left:0; right:0; bottom:0; padding:14px 16px calc(14px + env(safe-area-inset-bottom)); background:rgba(5,6,12,.92); backdrop-filter:blur(10px); border-top:1px solid var(--line); }
+  .row { max-width:560px; margin:0 auto; display:flex; gap:10px; }
+  button { font:inherit; border:0; border-radius:14px; padding:16px; font-size:19px; font-weight:900; }
+  #go { flex:1; background:#2a2b36; color:var(--mute); }
+  #go.ready { background:linear-gradient(180deg,#ffe08f,var(--me)); color:#1a1206; box-shadow:0 0 30px rgba(255,207,102,.5); }
+  #reset { background:transparent; color:var(--mute); border:1px solid var(--line); font-size:15px; }
+  .done { max-width:560px; margin:0 auto 16px; text-align:center; font-size:22px; font-weight:900; color:var(--ok); display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>定案前檢查表</h1>
+  <div class="sub" id="left">還剩 12 項</div>
+  <div class="bar"><i id="fill"></i></div>
+</header>
+<div class="done" id="done">✓ 已定案，可以上架了</div>
+<main id="list"></main>
+<footer><div class="row"><button id="reset">下一支影片</button><button id="go" disabled>定案</button></div></footer>
+<script>
+const GROUPS = {
+  "配音": ["沒有語助詞（啊、哈、哎）", "語速自然，不像在念稿", "整段配音親耳聽完"],
+  "畫面": ["黑熊老師沒擋到字幕和內容", "每 2–3 秒有變化，沒有停太久", "整支成片自己看完"],
+  "事實": ["價格這集重新查過", "價格寫「僅供參考，未來都會再變動」", "沒實測的，不說「實測」"],
+  "上架": ["字幕一行一句、斷行順", "縮圖沒有截到轉場", "說明欄標示 AI 配音"]
+};
+const KEY = "final-check-v1";
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) {}
+const list = document.getElementById("list");
+for (const [g, items] of Object.entries(GROUPS)) {
+  const sec = document.createElement("section");
+  sec.innerHTML = `<h2>${g}</h2>`;
+  items.forEach((t, i) => {
+    const id = g + i;
+    const lab = document.createElement("label");
+    lab.innerHTML = `<input type="checkbox" data-id="${id}" ${saved[id] ? "checked" : ""}><span>${t}</span>`;
+    sec.appendChild(lab);
+  });
+  list.appendChild(sec);
+}
+const boxes = [...document.querySelectorAll("input")];
+const go = document.getElementById("go");
+function update() {
+  const n = boxes.filter(b => b.checked).length, left = boxes.length - n;
+  document.getElementById("left").textContent = left ? `還剩 ${left} 項` : "全部檢查完了";
+  document.getElementById("fill").style.width = (n / boxes.length * 100) + "%";
+  go.disabled = left > 0;
+  go.classList.toggle("ready", left === 0);
+  const s = {}; boxes.forEach(b => { if (b.checked) s[b.dataset.id] = 1; });
+  try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {}
+}
+boxes.forEach(b => b.addEventListener("change", () => { document.getElementById("done").style.display = "none"; update(); }));
+go.addEventListener("click", () => { document.getElementById("done").style.display = "block"; window.scrollTo({top: 0, behavior: "smooth"}); });
+document.getElementById("reset").addEventListener("click", () => {
+  if (!confirm("清空全部勾選，開始下一支影片？")) return;
+  boxes.forEach(b => b.checked = false); document.getElementById("done").style.display = "none"; update();
+});
+update();
+</script>
+</body>
+</html>
